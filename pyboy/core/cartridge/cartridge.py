@@ -19,11 +19,17 @@ logger = pyboy.logging.get_logger(__name__)
 
 def load_cartridge(filename):
     rombanks = load_romfile(filename)
-    if not validate_checksum(rombanks):
-        raise Exception("Cartridge header checksum mismatch!")
-
-    # WARN: The following table doesn't work for MBC2! See Pan Docs
-    external_ram_count = int(EXTERNAL_RAM_TABLE[rombanks[0, 0x0149]])
+    if filename.endswith(".gba"):
+        if not validate_checksum_gba(rombanks):
+            raise Exception("Cartridge header checksum mismatch!")
+        # TODO: figure out address for external RAM for GBA...
+        # Docs for Gameboy here: https://gbdev.io/pandocs/The_Cartridge_Header.html
+        external_ram_count = int(rombanks[0, 0x0149])
+    else:
+        if not validate_checksum(rombanks):
+            raise Exception("Cartridge header checksum mismatch!")
+        # WARN: The following table doesn't work for MBC2! See Pan Docs
+        external_ram_count = int(EXTERNAL_RAM_TABLE[rombanks[0, 0x0149]])
 
     carttype = rombanks[0, 0x0147]
     cartinfo = CARTRIDGE_TABLE.get(carttype, None)
@@ -45,6 +51,16 @@ def validate_checksum(rombanks):
         x = x - rombanks[0, m] - 1
         x &= 0xff
     return rombanks[0, 0x14D] == x
+
+
+def validate_checksum_gba(rombanks):
+    # https://problemkaputt.de/gbatek-gba-cartridge-header.htm
+    x = 0
+    for m in range(0xA0, 0xBD):
+        x = x - rombanks[0, m]
+        x &= 0xFF
+    x = (x - 0x19) & 0xFF
+    return rombanks[0, 0xBD] == x
 
 
 def load_romfile(filename):
